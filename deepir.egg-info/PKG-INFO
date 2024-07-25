@@ -1,0 +1,65 @@
+Metadata-Version: 2.1
+Name: deepir
+Version: 0.0.1
+Summary: DeepInfrared Toolbox and Benchmark
+Home-page: https://github.com/GrokCV/deepinfrared
+Author: Yimian Dai
+Author-email: yimian.dai@gmail.com
+License: Apache License 2.0
+Keywords: infrared small target detection
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Description-Content-Type: text/markdown
+Provides-Extra: all
+Provides-Extra: tests
+Provides-Extra: build
+Provides-Extra: optional
+Provides-Extra: mim
+License-File: LICENSE
+
+# deepinfrared
+
+## Installation
+
+```shell
+conda create --name deepir python=3.9
+conda activate deepir
+```
+
+Step 1: Install PyTorch 2.0.0+CU118
+
+```shell
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+```
+
+Step 2: Install `mmcv` 2.0.0, `mmdet` 3.0.0, `mmengine` 0.7.2, `mmsegmentation` 1.0.0
+
+```shell
+pip install -U openmim
+mim install mmengine
+mim install "mmcv>=2.0.0"
+mim install "mmdet>=3.0.0"
+pip install "mmsegmentation>=1.0.0"
+pip install dadaptation
+```
+
+Step 3: Install `deepir`
+
+```shell
+python setup.py develop
+```
+
+## 其他
+
+- `tools/dataset_converters/binary_mask_to_rgb.py`: 将二值化的 mask 转换为 RGB 格式
+
+## 注意事项
+
+自己实现的模块，在 config 中，需要添加前缀 `deepir`，例如 `deepir.DualFCNHead`，否则会报没有注册的错误。
+
