@@ -8,21 +8,30 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-
+from einops import rearrange
 from mmcv.cnn import ConvModule, Scale
 from mmcv.ops import batched_nms
 from mmengine.config import ConfigDict
 from mmengine.structures import InstanceData
 
 from mmdet.structures import SampleList
-from mmdet.structures.bbox import (cat_boxes, get_box_tensor, get_box_wh,
-                                   scale_boxes)
-from mmdet.utils import (ConfigType, InstanceList, PixelList, MultiConfig,
-                         OptInstanceList, RangeType, reduce_mean)
+from mmdet.structures.bbox import cat_boxes, get_box_tensor, get_box_wh, scale_boxes
+from mmdet.utils import (
+    ConfigType,
+    InstanceList,
+    PixelList,
+    MultiConfig,
+    OptInstanceList,
+    RangeType,
+    reduce_mean,
+)
 from mmdet.models.dense_heads import FCOSHead
 from mmdet.models.utils import multi_apply
-from mmdet.models.utils import (filter_scores_and_topk, select_single_mlvl,
-                                unpack_gt_instances)
+from mmdet.models.utils import (
+    filter_scores_and_topk,
+    select_single_mlvl,
+    unpack_gt_instances,
+)
 
 from deepir.registry import MODELS
 from deepir.models.dense_heads import FCOSSegHead
@@ -38,14 +47,18 @@ class conv_bn_relu(nn.Module):
     def __init__(self, in_channel, out_channel):
         super(conv_bn_relu, self).__init__()
         self.layer = nn.Sequential(
-            nn.Conv2d(in_channels=in_channel, out_channels=out_channel, kernel_size=3, padding=1),
+            nn.Conv2d(
+                in_channels=in_channel,
+                out_channels=out_channel,
+                kernel_size=3,
+                padding=1,
+            ),
             nn.BatchNorm2d(out_channel),
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=True),
         )
 
     def forward(self, x):
         return self.layer(x)
-
 
 
 @MODELS.register_module()
@@ -97,11 +110,9 @@ class FCOSChangerSegHead(FCOSSegHead):
         >>> assert len(cls_score) == len(self.scales)
     """  # noqa: E501
 
-    def __init__(self,
-                 **kwargs) -> None:
-        super().__init__(
-            **kwargs)
-
+    def __init__(self, in_channels=256, **kwargs) -> None:
+        super().__init__(in_channels=in_channels, **kwargs)
+        self.mlp_channels = in_channels
         self.reduction_ratio = 4
         self.group_channels = 16
         self.groups = self.feat_channels // self.group_channels
@@ -111,29 +122,33 @@ class FCOSChangerSegHead(FCOSSegHead):
             out_channels=self.feat_channels // 2,
             kernel_size=1,
             conv_cfg=None,
-            norm_cfg=dict(type='BN'),
-            act_cfg=dict(type='ReLU'))
+            norm_cfg=dict(type="BN"),
+            act_cfg=dict(type="ReLU"),
+        )
         self.conv_squeeze_bg = ConvModule(
             in_channels=self.feat_channels,
             out_channels=self.feat_channels // 2,
             kernel_size=1,
             conv_cfg=None,
-            norm_cfg=dict(type='BN'),
-            act_cfg=dict(type='ReLU'))
+            norm_cfg=dict(type="BN"),
+            act_cfg=dict(type="ReLU"),
+        )
         self.conv_mix = ConvModule(
             in_channels=self.feat_channels,
             out_channels=self.feat_channels,
             kernel_size=1,
             conv_cfg=None,
-            norm_cfg=dict(type='BN'),
-            act_cfg=dict(type='ReLU'))
+            norm_cfg=dict(type="BN"),
+            act_cfg=dict(type="ReLU"),
+        )
         self.conv_reduce = ConvModule(
             in_channels=self.feat_channels,
             out_channels=self.feat_channels // self.reduction_ratio,
             kernel_size=1,
             conv_cfg=None,
-            norm_cfg=dict(type='BN'),
-            act_cfg=dict(type='ReLU'))
+            norm_cfg=dict(type="BN"),
+            act_cfg=dict(type="ReLU"),
+        )
         self.gen_weight = ConvModule(
             in_channels=self.feat_channels // self.reduction_ratio,
             out_channels=3**2 * self.groups,
@@ -141,14 +156,16 @@ class FCOSChangerSegHead(FCOSSegHead):
             stride=1,
             conv_cfg=None,
             norm_cfg=None,
-            act_cfg=None)
-        self.unfold = nn.Unfold(3, 1, (3-1)//2, 1)
+            act_cfg=None,
+        )
+        self.unfold = nn.Unfold(3, 1, (3 - 1) // 2, 1)
 
         self.fusion_conv = ConvModule(
             in_channels=self.feat_channels,
             out_channels=self.feat_channels // 2,
             kernel_size=1,
-            norm_cfg=self.norm_cfg)
+            norm_cfg=self.norm_cfg,
+        )
 
         self.convs_cls = nn.Sequential(
             conv_bn_relu(self.feat_channels, self.feat_channels // 2),
@@ -168,8 +185,9 @@ class FCOSChangerSegHead(FCOSSegHead):
             # conv_bn_relu(self.feat_channels, self.feat_channels),
             # conv_bn_relu(self.feat_channels // 2, self.feat_channels)
         )
-        # self.SpatialEx = SpatialExchange(p=1/2)
-        self.ChannelEx = ChannelExchange(p=1/2)
+
+        self.ChannelEx = ChannelAttExchange(p=1 / 2, mlp_channels=self.mlp_channels)
+        self.LSKModule = LSKModule(feat_channels=self.mlp_channels)
 
     def _init_layers(self) -> None:
         """Initialize layers of the head."""
@@ -179,20 +197,25 @@ class FCOSChangerSegHead(FCOSSegHead):
     def base_forward(self, inputs):
         out = self.fusion_conv(inputs)
         return out
-    
+
     def _init_mod_convs(self) -> None:
         """Initialize classification conv layers of the head."""
         # LSKNet
-        self.conv_spatial = nn.Conv2d(self.feat_channels, self.feat_channels,
-                                      3, stride=1,
-                                      padding=1,
-                                      groups=self.feat_channels,
-                                      dilation=1)
+        self.conv_spatial = nn.Conv2d(
+            self.feat_channels,
+            self.feat_channels,
+            3,
+            stride=1,
+            padding=1,
+            groups=self.feat_channels,
+            dilation=1,
+        )
         self.conv_squeeze = nn.Conv2d(2, 1, 3, padding=1)
         self.conv_post = nn.Conv2d(self.feat_channels, self.feat_channels, 1)
 
-    def forward_single(self, x: Tensor, scale: Scale,
-                       stride: int) -> Tuple[Tensor, Tensor, Tensor]:
+    def forward_single(
+        self, x: Tensor, scale: Scale, stride: int
+    ) -> Tuple[Tensor, Tensor, Tensor]:
         """Forward features of a single scale level.
 
         Args:
@@ -222,19 +245,15 @@ class FCOSChangerSegHead(FCOSSegHead):
             reg_feat = reg_layer(reg_feat)
 
         ################## Changer begins ##################
+            
+        seg_feat, cls_feat = self.LSKModule(seg_feat, cls_feat)
 
         seg_feat = self.convs_seg(seg_feat)
         cls_feat = self.convs_cls(cls_feat)
         seg_feat, cls_feat = self.ChannelEx(seg_feat, cls_feat)
-        # seg_feat, cls_feat = self.SpatialEx(seg_feat, cls_feat)
-        # seg_feat, cls_feat = self.ChannelEx(seg_feat, cls_feat)
-
-        # seg_feat = self.convs_seg(seg_feat)
-        # reg_feat = self.convs_reg(reg_feat)
-        # seg_feat, reg_feat = self.ChannelEx(seg_feat, reg_feat)
 
         ################### Changer ends ###################
-        
+
         cls_score = self.conv_cls(cls_feat)
         bbox_pred = self.conv_reg(reg_feat)
         seg_score = self.conv_seg(seg_feat)
@@ -256,89 +275,109 @@ class FCOSChangerSegHead(FCOSSegHead):
         else:
             bbox_pred = bbox_pred.exp()
         return cls_score, bbox_pred, centerness, seg_score
-    
 
-class SpatialExchange(BaseModule):
+class ChannelAttExchange(nn.Module):
     """
-    spatial exchange
+    Channel exchange with dynamic mask prediction using attention.
+
     Args:
-        p (float, optional): p of the features will be exchanged.
-            Defaults to 1/2.
+        p (float, optional): Fraction of the features to be exchanged. Defaults to 1/2.
+        mlp_channels (int, optional): Number of channels for the MLP. Defaults to 256.
     """
-    def __init__(self, p=1/2):
+
+    def __init__(self, p=1/2, mlp_channels=256):
         super().__init__()
-        assert p >= 0 and p <= 1
-        self.p = int(1/p)
-        self.mlp_exchange = MLP(in_channels=1, hidden_channels=64, out_channels=1)
-        self.mlp_exchange = MLP(in_channels=1, hidden_channels=64, out_channels=1)
+        assert 0 <= p <= 1, "p should be between 0 and 1"
+        self.p = p
+        self.num_exchange_channels = int(mlp_channels * self.p)
+        self.mlp = MLP(
+            in_channels=self.num_exchange_channels,
+            hidden_channels=64,
+            out_channels=self.num_exchange_channels,
+        )
+        self.attention_mask = LSKLayer(mlp_channels)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x1, x2):
-        N, c, h, w = x1.shape
-        exchange_map = torch.arange(w) % self.p == 0
-        exchange_mask = exchange_map.unsqueeze(0).unsqueeze(1).unsqueeze(2).expand((N, c, h, w))
-        
-        # Apply MLP to the selected features (exchange and non-exchange)
-        x1_exchange = self.mlp_exchange(x1[:, :, :, exchange_map].reshape(-1, 1))
-        x2_exchange = self.mlp_exchange(x2[:, :, :, exchange_map].reshape(-1, 1))
-        
-        # Reshape back to the original shape
-        x1_processed = x1.clone()
-        x2_processed = x2.clone()
-        
-        x1_processed[:, :, :, exchange_map] = x1_exchange.reshape(N, c, h, -1)
-        x2_processed[:, :, :, exchange_map] = x2_exchange.reshape(N, c, h, -1)
-        
-        # Perform the channel exchange
+        N, C, H, W = x1.shape
+
+        x1_mask_logits = self.attention_mask(x1)  # B, C
+        x1_mask_logits = self.sigmoid(x1_mask_logits)  # B, C
+        x2_mask_logits = self.attention_mask(x2)  # B, C
+        x2_mask_logits = self.sigmoid(x2_mask_logits)  # B, C
+
+        x1_topk_values, x1_topk_indices = x1_mask_logits.topk(self.num_exchange_channels, dim=1, largest=True, sorted=False)
+        x2_topk_values, x2_topk_indices = x2_mask_logits.topk(self.num_exchange_channels, dim=1, largest=True, sorted=False)
+
+        x1_topk_indices_sorted = torch.sort(x1_topk_indices, dim=1).values
+        x2_topk_indices_sorted = torch.sort(x2_topk_indices, dim=1).values
+
+        x1_extracted = x1[torch.arange(N).unsqueeze(-1), x1_topk_indices_sorted]  # B, k, H, W
+        x2_extracted = x2[torch.arange(N).unsqueeze(-1), x2_topk_indices_sorted]  # B, k, H, W
+
+        x1_extracted = rearrange(x1_extracted, "b c h w -> b (h w) c")
+        x2_extracted = rearrange(x2_extracted, "b c h w -> b (h w) c")
+
+        x1_extracted = self.mlp(x1_extracted)
+        x2_extracted = self.mlp(x2_extracted)
+
+        x1_extracted = rearrange(x1_extracted, "b (h w) c -> b c h w", h=H, w=W)
+        x2_extracted = rearrange(x2_extracted, "b (h w) c -> b c h w", h=H, w=W)
+
+        out_x1 = x2_extracted
+        out_x2 = x1_extracted
+
         out_x1 = x1.clone()
         out_x2 = x2.clone()
 
-        out_x1[exchange_mask] = x2_processed[exchange_mask]
-        out_x2[exchange_mask] = x1_processed[exchange_mask]
-        
-        return out_x1, out_x2
-    
+        for i in range(N):
+            out_x1[i, x1_topk_indices_sorted[i]] = x2_extracted[i]
+            out_x2[i, x2_topk_indices_sorted[i]] = x1_extracted[i]
 
-class ChannelExchange(BaseModule):
-    """
-    channel exchange
-    Args:
-        p (float, optional): p of the features will be exchanged.
-            Defaults to 1/2.
-    """
-    def __init__(self, p=1/2):
-        super().__init__()
-        assert p >= 0 and p <= 1
-        self.p = int(1/p)
-        self.mlp_exchange = MLP(in_channels=1, hidden_channels=64, out_channels=1)
-        self.mlp_exchange = MLP(in_channels=1, hidden_channels=64, out_channels=1)
+        return out_x1, out_x2
+
+
+class LSKModule(nn.Module):
+    def __init__(self, feat_channels):
+        super(LSKModule, self).__init__()
+        self.conv0 = nn.Conv2d(feat_channels, feat_channels, 5, padding=2, groups=feat_channels)
+        self.conv_spatial = nn.Conv2d(feat_channels, feat_channels, 7, stride=1, padding=9, groups=feat_channels, dilation=3)
+        self.conv1 = nn.Conv2d(feat_channels, feat_channels//2, 1)
+        self.conv2 = nn.Conv2d(feat_channels, feat_channels//2, 1)
+        self.conv_squeeze = nn.Conv2d(2, 2, 7, padding=3)
+        self.conv = nn.Conv2d(feat_channels//2, feat_channels, 1)
 
     def forward(self, x1, x2):
-        N, c, h, w = x1.shape
-        
-        exchange_map = torch.arange(c) % self.p == 0
-        exchange_mask = exchange_map.unsqueeze(0).unsqueeze(2).unsqueeze(3).expand((N, c, h, w))
+        attn1_x1 = self.conv0(x1) # B, C, H, W
+        attn2_x1 = self.conv_spatial(attn1_x1) # B, C, H, W
+        attn1_x1 = self.conv1(attn1_x1) # B, C//2, H, W
+        attn2_x1 = self.conv2(attn2_x1) # B, C//2, H, W
 
-        # Apply MLP to the selected features (exchange and non-exchange)
-        x1_exchange = self.mlp_exchange(x1[:, exchange_map, :, :].reshape(-1, 1))
-        x2_exchange = self.mlp_exchange(x2[:, exchange_map, :, :].reshape(-1, 1))
+        attn1_x2 = self.conv0(x2) # B, C, H, W
+        attn2_x2 = self.conv_spatial(attn1_x2) # B, C, H, W
+        attn1_x2 = self.conv1(attn1_x2) # B, C//2, H, W
+        attn2_x2 = self.conv2(attn2_x2) # B, C//2, H, W
         
-        # Reshape back to the original shape
-        x1_processed = x1.clone()
-        x2_processed = x2.clone()
-        
-        x1_processed[:, exchange_map, :, :] = x1_exchange.reshape(N, -1, h, w)
-        x2_processed[:, exchange_map, :, :] = x2_exchange.reshape(N, -1, h, w)
-        
-        # Perform the channel exchange
-        out_x1 = x1.clone()
-        out_x2 = x2.clone()
+        attn = torch.cat([attn1_x1, attn2_x1], dim=1) # B, C, H, W
+        avg_attn = torch.mean(attn, dim=1, keepdim=True) # B, 1, H, W
+        max_attn, _ = torch.max(attn, dim=1, keepdim=True) # B, 1, H, W
+        agg = torch.cat([avg_attn, max_attn], dim=1) # B, 2, H, W
+        sig = self.conv_squeeze(agg).sigmoid() # B, 2, H, W
+        attn = attn1_x1 * sig[:,0,:,:].unsqueeze(1) + attn2_x1 * sig[:,1,:,:].unsqueeze(1) # B, C//2, H, W
+        attn = self.conv(attn) # B, C, H, W
+        y1 = attn # B, C, H, W
 
-        out_x1[exchange_mask] = x2_processed[exchange_mask]
-        out_x2[exchange_mask] = x1_processed[exchange_mask]
-        # out_x1[exchange_mask] = x2[exchange_mask]
-        # out_x2[exchange_mask] = x1[exchange_mask]
-        
-        return out_x1, out_x2
+        attn = torch.cat([attn1_x2, attn2_x2], dim=1) # B, C, H, W
+        avg_attn = torch.mean(attn, dim=1, keepdim=True) # B, 1, H, W
+        max_attn, _ = torch.max(attn, dim=1, keepdim=True) # B, 1, H, W
+        agg = torch.cat([avg_attn, max_attn], dim=1) # B, 2, H, W
+        sig = self.conv_squeeze(agg).sigmoid() # B, 2, H, W
+        attn = attn1_x2 * sig[:,0,:,:].unsqueeze(1) + attn2_x2 * sig[:,1,:,:].unsqueeze(1) # B, C//2, H, W
+        attn = self.conv(attn) # B, C, H, W
+        y2 = attn # B, C, H, W
+
+        return y1, y2
+
 
 class MLP(nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels):
@@ -346,9 +385,37 @@ class MLP(nn.Module):
         self.fc1 = nn.Linear(in_channels, hidden_channels)
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(hidden_channels, out_channels)
-    
+
     def forward(self, x):
         x = self.fc1(x)
         x = self.relu(x)
         x = self.fc2(x)
         return x
+
+class LSKLayer(nn.Module):
+    def __init__(self, feat_channels):
+        super(LSKLayer, self).__init__()
+        self.conv0 = nn.Conv2d(feat_channels, feat_channels, 5, padding=2, groups=feat_channels)
+        self.conv_spatial = nn.Conv2d(feat_channels, feat_channels, 7, stride=1, padding=9, groups=feat_channels, dilation=3)
+        self.conv1 = nn.Conv2d(feat_channels, feat_channels//2, 1)
+        self.conv2 = nn.Conv2d(feat_channels, feat_channels//2, 1)
+        self.conv_squeeze = nn.Conv2d(2, 2, 7, padding=3)
+        self.conv = nn.Conv2d(feat_channels//2, feat_channels, 1)
+
+    def forward(self, x):
+        attn1 = self.conv0(x) # B, C, H, W
+        attn2 = self.conv_spatial(attn1) # B, C, H, W
+        attn1 = self.conv1(attn1) # B, C//2, H, W
+        attn2 = self.conv2(attn2) # B, C//2, H, W
+        
+        attn = torch.cat([attn1, attn2], dim=1) # B, C, H, W
+        avg_attn = torch.mean(attn, dim=1, keepdim=True) # B, 1, H, W
+        max_attn, _ = torch.max(attn, dim=1, keepdim=True) # B, 1, H, W
+        agg = torch.cat([avg_attn, max_attn], dim=1) # B, 2, H, W
+        sig = self.conv_squeeze(agg).sigmoid() # B, 2, H, W
+        attn = attn1 * sig[:,0,:,:].unsqueeze(1) + attn2 * sig[:,1,:,:].unsqueeze(1) # B, C//2, H, W
+        attn = self.conv(attn) # B, C, H, W
+
+        y = x * attn # B, C, H, W
+        y = y.mean(dim=[2, 3]) # B, C
+        return y
