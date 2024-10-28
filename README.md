@@ -180,5 +180,5 @@ The default image save path is under <SEG_CHECKPOINT_FILE>. You can use `--work-
 | **BAFE-Net (Ours)** | ResNet50 | 71.639G | 35.626M | 0.274 | 0.342 | **0.248** | 0.338 |
 
 ### Model Zoo
-Checkpoint and Train log: https://drive.google.com/uc?export=download&id=1_heou4B5w5htte8R7eUhyptGe2ZIa-g7
+Checkpoint and Train log: https://drive.google.com/uc?export=download&id=1li_WjUHAlO_2wOImO5yV16ISFDJc1LT5
 
