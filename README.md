@@ -1,66 +1,29 @@
 # Background Semantics Matter: Cross-Task Feature Exchange Network for Clustered Infrared Small Target Detection With Sky-Annotated Dataset
 
+This repository is the official implementation of BAFE-Net
 
-## DenseSIRST Datasets: https://github.com/GrokCV/DenseSIRST
-
-- [Installation](#installation)
-  - [Step 1: Create a conda environment](#step-1-create-a-conda-environment)
-  - [Step 2: Install PyTorch](#step-2-install-pytorch)
-  - [Step 3: Install OpenMMLab Codebases](#step-3-install-openmmlab-codebases)
-  - [Step 4: Install `deepir`](#step-4-install-deepir)
-- [Dataset Preparation](#dataset-preparation)
-  - [File Structure](#file-structure)
-  - [Datasets Link](#datasets-link)
-- [Train](#train)
-- [Test](#test)
-- [Model Zoo and Benchmark](#model-zoo-and-benchmark)
-  - [Leaderboard](#leaderboard)
-  - [Model Zoo](#model-zoo)
+- [DenseSIRST](#densesirst)
+    - [Model Zoo and Benchmark](#model-zoo-and-benchmark)
+- [BAFE-Net](#bafenet)
+    - [Installation](#installation)
+        - [Step 1: Create a conda environment](#step-1-create-a-conda-environment)
+        - [Step 2: Install PyTorch](#step-2-install-pytorch)
+        - [Step 3: Install OpenMMLab Codebases](#step-3-install-openmmlab-codebases)
+        - [Step 4: Install `deepir`](#step-4-install-deepir)
+    - [Train](#train)
+    - [Test](#test)
 
 
-## Installation
+## DenseSIRST
 
-Step 1: Create a conda environment
+### DenseSIRST Datasets: https://github.com/GrokCV/DenseSIRST
 
-```shell
-$ conda create --name deepir python=3.9
-$ conda activate deepir
-```
+![DenseSIRST](./docs/figure3.jpg)
 
-Step 2: Install PyTorch
+You can **download** our DenseSIRST dataset from [**Google Drive**](https://drive.google.com/uc?export=download&id=1PY0d1WuCjf_3wAIjDSNhYxREVK27OLzl).<br>
 
-```shell
-$ conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
-```
+For both training and inference, the following dataset structure is required:
 
-Step 3: Install OpenMMLab Codebases
-
-```shell
-pip install -U openmim
-mim install mmengine
-mim install "mmcv>=2.0.0"
-mim install "mmdet>=3.0.0"
-pip install "mmsegmentation>=1.0.0"
-pip install dadaptation
-```
-
-Step 4: Install `deepir`
-
-```shell
-$ python setup.py develop
-```
-
-**Note**: make sure you have `cd` to the root directory of `deepinfrared`
-
-```shell
-$ git clone git@github.com:GrokCV/BAFE-Net.git
-$ cd BAFE-Net
-```
-
-
-## Dataset Preparation
-
-### File Structure
 ```angular2html
 |- data
     |- SIRSTdevkit
@@ -102,41 +65,10 @@ $ cd BAFE-Net
 
 Please make sure that the path of your data set is consistent with the `data_root` in `configs/detection/_base_/datasets/sirst_det_seg_voc_skycp.py`
 
-### Datasets Link
-
-https://drive.google.com/uc?export=download&id=1PY0d1WuCjf_3wAIjDSNhYxREVK27OLzl
-
-
-## Train
-
-```shell
-$ CUDA_VISIBLE_DEVICES=0 python train.py <CONFIG_FILE>
-```
-
-For example:
-
-```shell
-$ CUDA_VISIBLE_DEVICES=0 python tools/train_det.py configs/detection/fcos_changer_seg/fcos_changer_seg_r50-caffe_fpn_gn-head_1x_densesirst.py
-```
-
-## Test
-
-```shell
-$ CUDA_VISIBLE_DEVICES=0 python test.py <CONFIG_FILE> <SEG_CHECKPOINT_FILE>
-```
-
-For example:
-
-```shell
-$ CUDA_VISIBLE_DEVICES=0 python tools/test_det.py configs/detection/fcos_changer_seg/fcos_changer_seg_r50-caffe_fpn_gn-head_1x_densesirst.py work_dirs/fcos_changer_seg_r50-caffe_fpn_gn-head_1x_densesirst/20240719_162542/best_pascal_voc_mAP_epoch_8.pth
-```
-
-If you want to visualize the result, you only add ```--show``` at the end of the above command.
-
-The default image save path is under <SEG_CHECKPOINT_FILE>. You can use `--work-dir` to specify the test log path, and the image save path is under this path by default. Of course, you can also use `--show-dir` to specify the image save path.
-
 
 ## Model Zoo and Benchmark
+
+Checkpoint and Train log: [**Google Drive**](https://drive.google.com/uc?export=download&id=1li_WjUHAlO_2wOImO5yV16ISFDJc1LT5).<br>
 
 ### Leaderboard
 
@@ -179,6 +111,76 @@ The default image save path is under <SEG_CHECKPOINT_FILE>. You can use `--work-
 | **BAFE-Net (Ours)** | ResNet18 | 57.654G | 22.31M  | **0.283** | 0.335 | 0.233 | 0.325 |
 | **BAFE-Net (Ours)** | ResNet50 | 71.639G | 35.626M | 0.274 | 0.342 | **0.248** | 0.338 |
 
-### Model Zoo
-Checkpoint and Train log: https://drive.google.com/uc?export=download&id=1li_WjUHAlO_2wOImO5yV16ISFDJc1LT5
+
+## BAFE-Net
+
+![BAFE-Net](./docs/BAFE-Net-Arch.jpg)
+
+### Installation
+
+Step 1: Create a conda environment
+
+```shell
+$ conda create --name deepir python=3.9
+$ conda activate deepir
+```
+
+Step 2: Install PyTorch
+
+```shell
+$ conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+```
+
+Step 3: Install OpenMMLab Codebases
+
+```shell
+pip install -U openmim
+mim install mmengine
+mim install "mmcv>=2.0.0"
+mim install "mmdet>=3.0.0"
+pip install "mmsegmentation>=1.0.0"
+pip install dadaptation
+```
+
+Step 4: Install `deepir`
+
+```shell
+$ python setup.py develop
+```
+
+**Note**: make sure you have `cd` to the root directory of `deepinfrared`
+
+```shell
+$ git clone git@github.com:GrokCV/BAFE-Net.git
+$ cd BAFE-Net
+```
+
+
+### Train
+
+```shell
+$ CUDA_VISIBLE_DEVICES=0 python train.py <CONFIG_FILE>
+```
+
+For example:
+
+```shell
+$ CUDA_VISIBLE_DEVICES=0 python tools/train_det.py configs/detection/fcos_changer_seg/fcos_changer_seg_r50-caffe_fpn_gn-head_1x_densesirst.py
+```
+
+### Test
+
+```shell
+$ CUDA_VISIBLE_DEVICES=0 python test.py <CONFIG_FILE> <SEG_CHECKPOINT_FILE>
+```
+
+For example:
+
+```shell
+$ CUDA_VISIBLE_DEVICES=0 python tools/test_det.py configs/detection/fcos_changer_seg/fcos_changer_seg_r50-caffe_fpn_gn-head_1x_densesirst.py work_dirs/fcos_changer_seg_r50-caffe_fpn_gn-head_1x_densesirst/20240719_162542/best_pascal_voc_mAP_epoch_8.pth
+```
+
+If you want to visualize the result, you only add ```--show``` at the end of the above command.
+
+The default image save path is under <SEG_CHECKPOINT_FILE>. You can use `--work-dir` to specify the test log path, and the image save path is under this path by default. Of course, you can also use `--show-dir` to specify the image save path.
 
