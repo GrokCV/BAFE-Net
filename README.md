@@ -184,3 +184,24 @@ If you want to visualize the result, you only add ```--show``` at the end of the
 
 The default image save path is under <SEG_CHECKPOINT_FILE>. You can use `--work-dir` to specify the test log path, and the image save path is under this path by default. Of course, you can also use `--show-dir` to specify the image save path.
 
+## Citation
+
+If you use our dataset or code in your research, please cite this project.
+
+```bibtex
+@article{xiao2024bafenet,
+	title={Background Semantics Matter: Cross-Task Feature Exchange Network for Clustered Infrared Small Target Detection With Sky-Annotated Dataset}, 
+	author={Mengxuan Xiao and Qun Dai and Yiming Zhu and Kehua Guo and Huan Wang and Xiangbo Shu and Jian Yang and Yimian Dai},
+	year={2024},
+	journal={arXiv preprint arXiv:2407.20078},
+}
+
+@article{dai2023one,
+  title={One-stage cascade refinement networks for infrared small target detection},
+  author={Dai, Yimian and Li, Xiang and Zhou, Fei and Qian, Yulei and Chen, Yaohong and Yang, Jian},
+  journal={IEEE Transactions on Geoscience and Remote Sensing},
+  volume={61},
+  pages={1--17},
+  year={2023},
+}
+```
