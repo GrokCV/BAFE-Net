@@ -13,7 +13,7 @@ This repository is the official implementation of BAFE-Net
     - [Train](#train)
     - [Test](#test)
 
-Paper link: [Background Semantics Matter: Cross-Task Feature Exchange Network for Clustered Infrared Small Target Detection With Sky-Annotated Dataset](https://arxiv.org/abs/2407.20078)
+### Paper link: [Background Semantics Matter: Cross-Task Feature Exchange Network for Clustered Infrared Small Target Detection With Sky-Annotated Dataset](https://arxiv.org/abs/2407.20078)
 
 ## DenseSIRST
 
