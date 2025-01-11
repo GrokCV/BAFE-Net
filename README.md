@@ -159,6 +159,8 @@ $ cd BAFE-Net
 
 ### Train
 
+**Single GPU Training**
+
 ```shell
 $ CUDA_VISIBLE_DEVICES=0 python train.py <CONFIG_FILE>
 ```
@@ -167,6 +169,18 @@ For example:
 
 ```shell
 $ CUDA_VISIBLE_DEVICES=0 python tools/train_det.py configs/detection/fcos_changer_seg/fcos_changer_seg_r50-caffe_fpn_gn-head_1x_densesirst.py
+```
+
+**Multi GPU Training**
+
+```shell
+$ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 train.py <CONFIG_FILE>
+```
+
+For example:
+
+```shell
+$ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 ./tools/train_det.py configs/detection/fcos_changer_seg/fcos_changer_seg_r50-caffe_fpn_gn-head_1x_densesirst.py
 ```
 
 ### Test
